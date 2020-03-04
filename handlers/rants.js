@@ -43,3 +43,63 @@ exports.postOneRant = (req, res) => {
       console.error(err);
     });
 };
+
+// Fetch One Single Rant
+exports.getRant = (req, res) => {
+  let rantData = {};
+  db.doc(`/rants/${req.params.rantId}`)
+    .get()
+    .then(doc => {
+      if (!doc.exists) {
+        return res.status(404).json({ error: "Rant Not Found" });
+      }
+      rantData = doc.data();
+      rantData.rantId = doc.id;
+      return db
+        .collection("comments")
+        .orderBy("createdAt", "desc")
+        .where("rantId", "==", req.params.rantId)
+        .get();
+    })
+    .then(data => {
+      rantData.comments = [];
+      data.forEach(doc => {
+        rantData.comments.push(doc.data());
+      });
+      return res.json(rantData);
+    })
+    .catch(err => {
+      res.status(500).json({ error: err.code });
+      console.error(err);
+    });
+};
+
+// Reply To A Comment
+exports.commentOnRant = (req, res) => {
+  if (req.body.body.trim() === "")
+    return res.status(400).json({ comment: "Must Not Be Empty" });
+
+  const newComment = {
+    body: req.body.body,
+    createdAt: new Date().toISOString(),
+    rantId: req.params.rantId,
+    userHandle: req.user.handle,
+    userImage: req.user.imageUrl
+  };
+
+  db.doc(`/rants/${req.params.rantId}`).get()
+    .then(doc => {
+      if (!doc.exists) {
+        return res.status(404).json({ error: "Rant Not Found" });
+      }
+      return db.collection("comments").add(newComment);
+    })
+    .then(() => {
+      res.json(newComment);
+    })
+    .catch(err => {
+      res.status(500).json({ error: "Something Went Wrong" });
+      console.error(err);
+      console.log(rantId);
+    });
+};
