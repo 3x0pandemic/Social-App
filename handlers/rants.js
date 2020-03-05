@@ -30,13 +30,18 @@ exports.postOneRant = (req, res) => {
   const newRant = {
     body: req.body.body,
     userHandle: req.user.handle,
-    createdAt: new Date().toISOString()
+    userImage: req.user.imageUrl,
+    createdAt: new Date().toISOString(),
+    likeCount: 0,
+    commentCount: 0
   };
 
   db.collection("rants")
     .add(newRant)
     .then(doc => {
-      res.json({ message: `document ${doc.id} created successfully` });
+      const resRant = newRant;
+      resRant.rantId = doc.id;
+      res.json(resRant);
     })
     .catch(err => {
       res.status(500).json({ error: "something went wrong" });
@@ -74,7 +79,7 @@ exports.getRant = (req, res) => {
     });
 };
 
-// Reply To A Comment
+// Reply To A Rant
 exports.commentOnRant = (req, res) => {
   if (req.body.body.trim() === "")
     return res.status(400).json({ comment: "Must Not Be Empty" });
@@ -87,11 +92,15 @@ exports.commentOnRant = (req, res) => {
     userImage: req.user.imageUrl
   };
 
-  db.doc(`/rants/${req.params.rantId}`).get()
+  db.doc(`/rants/${req.params.rantId}`)
+    .get()
     .then(doc => {
       if (!doc.exists) {
         return res.status(404).json({ error: "Rant Not Found" });
       }
+      return doc.ref.update({ commentCount: doc.data().commentCount + 1 });
+    })
+    .then(() => {
       return db.collection("comments").add(newComment);
     })
     .then(() => {
@@ -101,5 +110,122 @@ exports.commentOnRant = (req, res) => {
       res.status(500).json({ error: "Something Went Wrong" });
       console.error(err);
       console.log(rantId);
+    });
+};
+
+// Like A User's Post
+exports.likeRant = (req, res) => {
+  const likeDocument = db
+    .collection("likes")
+    .where("userHandle", "==", req.user.handle)
+    .where("rantId", "==", req.params.rantId)
+    .limit(1);
+
+  const rantDocument = db.doc(`/rants/${req.params.rantId}`);
+
+  let rantData = {};
+
+  rantDocument
+    .get()
+    .then(doc => {
+      if (doc.exists) {
+        rantData = doc.data();
+        rantData.rantId = doc.id;
+        return likeDocument.get();
+      } else {
+        return res.status(404).json({ error: "Rant Not Found" });
+      }
+    })
+    .then(data => {
+      if (data.empty) {
+        return db
+          .collection("likes")
+          .add({
+            rantId: req.params.rantId,
+            userHandle: req.user.handle
+          })
+          .then(() => {
+            rantData.likeCount++;
+            return rantDocument.update({ likeCount: rantData.likeCount });
+          })
+          .then(() => {
+            return res.json(rantData);
+          });
+      } else {
+        return res.status(400).json({ error: "Rant Already Liked" });
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      res.status(500).json({ error: err.code });
+    });
+};
+
+// Unlike A User's Post
+exports.unlikeRant = (req, res) => {
+  const likeDocument = db
+    .collection("likes")
+    .where("userHandle", "==", req.user.handle)
+    .where("rantId", "==", req.params.rantId)
+    .limit(1);
+
+  const rantDocument = db.doc(`/rants/${req.params.rantId}`);
+
+  let rantData = {};
+
+  rantDocument
+    .get()
+    .then(doc => {
+      if (doc.exists) {
+        rantData = doc.data();
+        rantData.rantId = doc.id;
+        return likeDocument.get();
+      } else {
+        return res.status(404).json({ error: "Rant Not Found" });
+      }
+    })
+    .then(data => {
+      if (data.empty) {
+        return res.status(400).json({ error: "Rant Not Liked" });
+      } else {
+        return db
+          .doc(`/likes/${data.docs[0].id}`)
+          .delete()
+          .then(() => {
+            rantData.likeCount--;
+            return rantDocument.update({ likeCount: rantData.likeCount });
+          })
+          .then(() => {
+            res.json(rantData);
+          });
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      res.status(500).json({ error: err.code });
+    });
+};
+
+// Delete A Rant
+exports.deleteRant = (req, res) => {
+  const document = db.doc(`/rants/${req.params.rantId}`);
+  document
+    .get()
+    .then(doc => {
+      if (!doc.exists) {
+        return res.status(404).json({ error: "Rant Not Found" });
+      }
+      if (doc.data().userHandle !== req.user.handle) {
+        return res.status(403).json({ error: "Unauthorized" });
+      } else {
+        return document.delete();
+      }
+    })
+    .then(() => {
+      res.json({ message: "Rant Deleted Successfully" });
+    })
+    .catch(err => {
+      console.error(err);
+      return res.status(500).json({ error: err.code });
     });
 };

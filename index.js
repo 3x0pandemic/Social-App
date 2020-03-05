@@ -6,8 +6,12 @@ const {
   getAllRants,
   postOneRant,
   getRant,
-  commentOnRant
+  commentOnRant,
+  likeRant,
+  unlikeRant,
+  deleteRant
 } = require("./handlers/rants");
+
 const {
   signup,
   login,
@@ -20,9 +24,9 @@ const {
 app.get("/rants", getAllRants);
 app.post("/rant", FBAuth, postOneRant);
 app.get("/rant/:rantId", getRant);
-// TODO: Delete Rant
-// TODO: Like a Rant
-// TODO: Unlike a Rant
+app.get("/rant/:rantId/like", FBAuth, likeRant);
+app.get("/rant/:rantId/unlike", FBAuth, unlikeRant);
+app.delete("/rant/:rantId", FBAuth, deleteRant);
 app.post("/rant/:rantId/comment", FBAuth, commentOnRant);
 
 // Users Route
