@@ -12,8 +12,11 @@ exports.getAllRants = (req, res) => {
           rantId: doc.id,
           body: doc.data().body,
           userHandle: doc.data().userHandle,
-          createdAt: doc.data().createdAt
-          //...doc.data()
+          createdAt: doc.data().createdAt,
+          commentCount: doc.data().commentCount,
+          likeCount: doc.data().likeCount,
+          userImage: doc.data().userImage
+
         });
       });
       return res.json(rants);
@@ -79,7 +82,7 @@ exports.getRant = (req, res) => {
     });
 };
 
-// Reply To A Rant
+// Comment On A Rant
 exports.commentOnRant = (req, res) => {
   if (req.body.body.trim() === "")
     return res.status(400).json({ comment: "Must Not Be Empty" });
@@ -91,6 +94,7 @@ exports.commentOnRant = (req, res) => {
     userHandle: req.user.handle,
     userImage: req.user.imageUrl
   };
+  console.log(newComment);
 
   db.doc(`/rants/${req.params.rantId}`)
     .get()

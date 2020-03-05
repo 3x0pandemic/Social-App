@@ -64,7 +64,9 @@ exports.signup = (req, res) => {
       if (err.code == "auth/email-already-in-use") {
         return res.status(400).json({ email: "Email Is Already In Use" });
       } else {
-        return res.status(500).json({ error: err.code });
+        return res
+          .status(500)
+          .json({ general: "Something Went Wrong. Please Try Again" });
       }
     });
 };
@@ -90,11 +92,11 @@ exports.login = (req, res) => {
     })
     .catch(err => {
       console.error(err);
-      if (err.code === "auth/wrong-password") {
-        return res
-          .status(403)
-          .json({ general: "Wrong Credentials. Please Try Again" });
-      } else return res.status(500).json({ error: err.code });
+      // auth/wrong-password
+      // auth/user-not-user
+      return res
+        .status(403)
+        .json({ general: "Wrong Credentials. Please Try Again" });
     });
 };
 
@@ -106,6 +108,42 @@ exports.addUserDetails = (req, res) => {
     .update(userDetails)
     .then(() => {
       return res.json({ message: "Details Added Successfuly" });
+    })
+    .catch(err => {
+      console.error(err);
+      return res.status(500).json({ error: err.code });
+    });
+};
+
+// Get Any User's Details
+exports.getUserDetails = (req, res) => {
+  let userData = {};
+  db.doc(`/users/${req.params.handle}`)
+    .get()
+    .then(doc => {
+      if (doc.exists) {
+        userData.user = doc.data();
+        return db
+          .collection("rants")
+          .where("userHandle", "==", req.params.handle)
+          .orderBy("createdAt", "desc")
+          .get();
+      }
+    })
+    .then(data => {
+      userData.rants = [];
+      data.forEach(doc => {
+        userData.rants.push({
+          body: doc.data().body,
+          createdAt: doc.data().createdAt,
+          userHandle: doc.data().userHandle,
+          userImage: doc.data().userImage,
+          likeCount: doc.data().likeCount,
+          commentCount: doc.data().commentCount,
+          rantId: doc.id
+        });
+      });
+      return res.json(userData);
     })
     .catch(err => {
       console.error(err);
@@ -125,6 +163,8 @@ exports.getAuthenticatedUser = (req, res) => {
           .collection("likes")
           .where("userHandle", "==", req.user.handle)
           .get();
+      } else {
+        return res.status(404).json({ error: "User Not Found" });
       }
     })
     .then(data => {
@@ -206,8 +246,26 @@ exports.uploadImage = (req, res) => {
       })
       .catch(err => {
         console.error(err);
-        res.status(500).json({ error: err.code });
+        return res.status(500).json({ error: err.code });
       });
   });
   busboy.end(req.rawBody);
+};
+
+// Mark The Notification As Having Been Read By User
+exports.markNotificationsRead = (req, res) => {
+  let batch = db.batch();
+  req.body.forEach(notificationId => {
+    const notification = db.doc(`/notifications/${notificationId}`);
+    batch.update(notification, { read: true });
+  });
+  batch
+    .commit()
+    .then(() => {
+      return res.json({ message: "Notifications Marked Read" });
+    })
+    .catch(err => {
+      console.error(err);
+      return res.status(500).json({ error: err.code });
+    });
 };
